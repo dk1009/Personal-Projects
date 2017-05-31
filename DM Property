@@ -1,0 +1,172 @@
+#set wd
+
+library(tidyr)
+library(dplyr)
+library(stringr)
+library(corrplot)
+library(ggplot2)
+
+
+#Read property data
+
+#kaggle_property = read.csv("")
+
+summary(kaggle_property)
+
+kaggle_property <- kaggle_property %>% rename(
+  parcel_ID = parcelid,
+  build_year = yearbuilt,
+  area__fin_base = basementsqft,
+  area_patio_yard = yardbuildingsqft17,
+  area_shed_yard = yardbuildingsqft26, 
+  area_tot_pool = poolsizesum,  
+  area_lot = lotsizesquarefeet, 
+  area_tot_garage = garagetotalsqft,
+  area_entryFloor_fin = finishedfloor1squarefeet,
+  area_tot_calc = calculatedfinishedsquarefeet,
+  area_tot_base = finishedsquarefeet6,
+  area_liv_fin = finishedsquarefeet12,
+  area_liv_peri = finishedsquarefeet13,
+  area_tot_finished = finishedsquarefeet15,  
+  area_liv_fin_entryFloor = finishedsquarefeet50,
+  num_unit = unitcnt, 
+  num_story = numberofstories,  
+  num_room = roomcnt,
+  num_bath = bathroomcnt,
+  num_bed = bedroomcnt,
+  num_bath_fracNfull = calculatedbathnbr,
+  num_bath_full = fullbathcnt,  
+  num_3qtr_bath = threequarterbathnbr, 
+  num_fireplace = fireplacecnt,
+  num_pool = poolcnt,  
+  num_garage = garagecarcnt,  
+  county_ID = regionidcounty,
+  city_ID = regionidcity,
+  zip = regionidzip,
+  neighbor_ID = regionidneighborhood,  
+  val_tot_tax = taxvaluedollarcnt,
+  val_building = structuretaxvaluedollarcnt,
+  val_land = landtaxvaluedollarcnt,
+  prop_tax = taxamount,
+  tax_yr = assessmentyear,
+  tax_due_2015 = taxdelinquencyflag,
+  tax_due_yr = taxdelinquencyyear,
+  flag_fireplace = fireplaceflag, 
+  flag_tub_spa = hashottuborspa,
+  buildQual_ID = buildingqualitytypeid,
+  buildClass_ID= buildingclasstypeid,
+  buildMat_ID = typeconstructiontypeid,
+  deck_ID = decktypeid,
+  story_ID = storytypeid,
+  heatSys_ID = heatingorsystemtypeid,
+  ac_ID = airconditioningtypeid,
+  archStyle_ID= architecturalstyletypeid,
+  Fed_ID = fips,
+  pool_spa_htub = pooltypeid2,
+  pool_no_htub = pooltypeid7,
+  zone_county = propertycountylandusecode,
+  propUse_ID = propertylandusetypeid,
+  propUse_desc = propertyzoningdesc
+)
+
+str(kaggle_property)
+
+kaggle_property$ac_ID = as.factor(kaggle_property$ac_ID)
+kaggle_property$buildQual_ID = as.factor(kaggle_property$buildQual_ID)
+kaggle_property$buildClass_ID = as.factor(kaggle_property$buildClass_ID)
+kaggle_property$deck_ID = as.factor(kaggle_property$deck_ID)
+kaggle_property$archStyle_ID = as.factor(kaggle_property$archStyle_ID)
+kaggle_property$Fed_ID = as.factor(kaggle_property$Fed_ID)
+kaggle_property$heatSys_ID = as.factor(kaggle_property$heatSys_ID)
+kaggle_property$pooltypeid10 = as.factor(kaggle_property$pooltypeid10)
+kaggle_property$pool_spa_htub = as.factor(kaggle_property$pool_spa_htub)
+kaggle_property$pool_no_htub = as.factor(kaggle_property$pool_no_htub)
+kaggle_property$zone_county = as.integer(kaggle_property$zone_county)
+kaggle_property$propUse_ID = as.factor(kaggle_property$propUse_ID)
+kaggle_property$city_ID = as.factor(kaggle_property$city_ID)
+kaggle_property$propUse_desc = as.character(kaggle_property$propUse_desc)
+kaggle_property$county_ID = as.factor(kaggle_property$county_ID)
+kaggle_property$neighbor_ID = as.factor(kaggle_property$neighbor_ID)
+kaggle_property$story_ID = as.factor(kaggle_property$story_ID)
+
+str(kaggle_property)
+
+kaggle_property$city_ID = as.integer(kaggle_property$city_ID)
+kaggle_property$neighbor_ID = as.integer(kaggle_property$neighbor_ID)
+
+
+#Percentage of missing values
+
+miss_val <- kaggle_property %>% summarize_each(funs(sum(is.na(.))/n()))
+
+View(miss_val)
+
+#Visualize missing values 
+
+miss_val <- gather(miss_val, key="feature", value="missing_pct")
+miss_val %>% 
+  ggplot(aes(x=reorder(feature,-missing_pct),y=missing_pct)) +
+  geom_bar(stat="identity",fill="red")+
+  coord_flip()+theme_bw()
+
+#Filter features with less than 25% missing values
+
+good_features <- filter(miss_val, missing_pct<0.25)
+View(good_features)
+
+#Load transaction date data
+
+#tran_date = read.csv("")
+
+
+
+tran_date <- tran_date %>% rename(
+  parcel_ID = parcelid,
+  tr_date = transactiondate)
+
+View(tran_date)
+
+library(lubridate)
+
+tmp <- tran_date%>% mutate(year_month = make_date(year=year(tr_date),month=month(tr_date)))
+tmp %>% 
+  group_by(year_month) %>% count() %>% 
+  ggplot(aes(x=year_month,y=n)) +
+  geom_bar(stat="identity", fill="red")+
+  geom_vline(aes(xintercept=as.numeric(as.Date("2016-10-01"))),size=2)
+
+#vars <- good_features$feature[str_detect(good_features$feature,'num_')]
+
+#Combine date data with property data
+cor_tmp <- tran_date %>% left_join(kaggle_property, by="parcel_ID") 
+
+View(cor_tmp)
+
+cor_tmp[is.na(cor_tmp)] <- 0 
+
+warnings()
+
+corrplot(cor(cor_tmp, use = "pairwise.complete.obs"))
+
+vars <- good_features$feature[str_detect(good_features$feature,'num_')]
+
+tmp <- cor_tmp %>% select(one_of(c(vars,"abs_logerror"))
+
+corrplot(cor(tmp, use="complete.obs",type="lower"))
+
+?corrplot
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
